@@ -1,0 +1,3 @@
+[submodule "submodules/internimage"]
+	path = submodules/internimage
+	url = https://github.com/OpenGVLab/InternImage.git

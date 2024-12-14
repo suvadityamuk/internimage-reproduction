@@ -1,0 +1,1 @@
+wget https://huggingface.co/OpenGVLab/InternImage/resolve/main/internimage_g_22kto1k_512.pth
