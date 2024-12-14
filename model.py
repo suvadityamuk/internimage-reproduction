@@ -3,7 +3,6 @@ import torch.nn as nn
 import torch.utils.checkpoint as checkpoint
 import torch.nn.functional as F
 from timm.models.layers import trunc_normal_, DropPath
-# from ops_dcnv3 import modules as opsm
 from config_intern_g import config_dict
 import os
 import sys
@@ -12,10 +11,12 @@ dcn_path = os.path.join(os.getcwd(), "submodules", "internimage", "classificatio
 sys.path.append(models_path)
 sys.path.append(dcn_path)
 
-from models.intern_image import InternImage
 from ops_dcnv3 import modules as opsm
 
 class Stem(nn.Module):
+    """
+    Stem layer for InternImage
+    """
     def __init__(self, in_channels, out_channels):
         super(Stem, self).__init__()
         self.in_channels = in_channels
@@ -48,6 +49,9 @@ class Stem(nn.Module):
 
 
 class CrossAttention(nn.Module):
+    """
+    CrossAttention layer for InternImage
+    """
     def __init__(
         self,
         num_heads,
@@ -246,8 +250,8 @@ class BasicInternImageLayer(nn.Module):
             offset_scale=offset_scale,
             act_layer="GELU",
             norm_layer="LN",
-            dw_kernel_size=dw_kernel_size,  # for InternImage-H/G
-            center_feature_scale=center_feature_scale,  # for InternImage-H/G
+            dw_kernel_size=dw_kernel_size,
+            center_feature_scale=center_feature_scale,
             remove_center=remove_center,
         )
         self.drop_path = DropPath(drop_path) if drop_path > 0.0 else nn.Identity()
@@ -341,10 +345,10 @@ class BasicInternImageBlock(nn.Module):
                     layer_scale=layer_scale,
                     offset_scale=offset_scale,
                     with_cp=with_cp,
-                    dw_kernel_size=dw_kernel_size,  # for InternImage-H/G
-                    res_post_norm=res_post_norm,  # for InternImage-H/G
-                    center_feature_scale=center_feature_scale,  # for InternImage-H/G
-                    remove_center=remove_center,  # for InternImage-H/G
+                    dw_kernel_size=dw_kernel_size,
+                    res_post_norm=res_post_norm,
+                    center_feature_scale=center_feature_scale,
+                    remove_center=remove_center,
                 )
                 for i in range(depth)
             ]
@@ -352,7 +356,7 @@ class BasicInternImageBlock(nn.Module):
         if not self.post_norm or center_feature_scale:
             self.norm = nn.LayerNorm(channels)
         self.post_norm_block_ids = post_norm_block_ids
-        if post_norm_block_ids is not None:  # for InternImage-H/G
+        if post_norm_block_ids is not None:
             self.post_norms = nn.ModuleList(
                 [nn.LayerNorm(channels, eps=1e-6) for _ in post_norm_block_ids]
             )
@@ -510,22 +514,18 @@ class InternImageCustom(nn.Module):
         # blocks
         idx = 0
         for i in range(4):
-            layer_num = 3 - i  # 3 2 1 0
+            layer_num = 3 - i
             for j in range(self.depths[layer_num]):
                 block_num = self.depths[layer_num] - j - 1
                 tag = "levels.{}.blocks.{}.".format(layer_num, block_num)
                 decay = 1.0 * (decay_ratio**idx)
                 lr_ratios[tag] = decay
                 idx += 1
-        # patch_embed (before stage-1)
         lr_ratios["patch_embed"] = lr_ratios["levels.0.blocks.0."]
-        # levels.0.downsample (between stage-1 and stage-2)
         lr_ratios["levels.0.downsample"] = lr_ratios["levels.1.blocks.0."]
         lr_ratios["levels.0.norm"] = lr_ratios["levels.1.blocks.0."]
-        # levels.1.downsample (between stage-2 and stage-3)
         lr_ratios["levels.1.downsample"] = lr_ratios["levels.2.blocks.0."]
         lr_ratios["levels.1.norm"] = lr_ratios["levels.2.blocks.0."]
-        # levels.2.downsample (between stage-3 and stage-4)
         lr_ratios["levels.2.downsample"] = lr_ratios["levels.3.blocks.0."]
         lr_ratios["levels.2.norm"] = lr_ratios["levels.3.blocks.0."]
         return lr_ratios
